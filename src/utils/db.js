@@ -1,24 +1,27 @@
+// Mind map persistence.
+//
+// Primary store is the server's disk-backed REST API (/api/maps), so maps live
+// as JSON files on disk and survive browser data clears, eviction, and browser
+// switches. When the API is unreachable (e.g. the app is opened as a static
+// file with no server), we fall back to the legacy IndexedDB store so the app
+// still works. On first contact with an empty server we migrate any existing
+// IndexedDB maps up to disk (copy, not move — IndexedDB is left intact).
+
+const API_BASE = '/api/maps';
+
 const DB_NAME = 'LocalMindMapDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'mindmaps';
 
-/**
- * Initializes the IndexedDB database.
- * @returns {Promise<IDBDatabase>}
- */
-export function initDB() {
+/* ------------------------------------------------------------------ *
+ * IndexedDB (legacy store: migration source + offline fallback)
+ * ------------------------------------------------------------------ */
+
+function initDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = (event) => {
-      console.error('Database failed to open:', event);
-      reject(event.target.error);
-    };
-
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
-    };
-
+    request.onerror = (event) => reject(event.target.error);
+    request.onsuccess = (event) => resolve(event.target.result);
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -28,135 +31,152 @@ export function initDB() {
   });
 }
 
-/**
- * Retrieves all saved mind maps (metadata only, excluding nodes for speed).
- * @returns {Promise<Array<Object>>}
- */
+function idbGetAllFull() {
+  return initDB().then((db) => new Promise((resolve, reject) => {
+    const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = (event) => reject(event.target.error);
+  }));
+}
+
+function idbGetAllMeta() {
+  return idbGetAllFull().then((maps) =>
+    maps
+      .map(({ id, name, lastUpdated, nodeCount }) => ({ id, name, lastUpdated, nodeCount }))
+      .sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated))
+  );
+}
+
+function idbGet(id) {
+  return initDB().then((db) => new Promise((resolve, reject) => {
+    const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(id);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = (event) => reject(event.target.error);
+  }));
+}
+
+function idbPut(map) {
+  return initDB().then((db) => new Promise((resolve, reject) => {
+    const request = db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).put(map);
+    request.onsuccess = () => resolve(map);
+    request.onerror = (event) => reject(event.target.error);
+  }));
+}
+
+function idbDelete(id) {
+  return initDB().then((db) => new Promise((resolve, reject) => {
+    const request = db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = (event) => reject(event.target.error);
+  }));
+}
+
+/* ------------------------------------------------------------------ *
+ * Mode detection: server (disk) vs local (IndexedDB fallback)
+ * ------------------------------------------------------------------ */
+
+let modePromise = null;
+
+function detectMode() {
+  if (modePromise) return modePromise;
+  modePromise = (async () => {
+    try {
+      const res = await fetch(API_BASE, { method: 'GET' });
+      if (!res.ok) return 'local';
+      const serverMaps = await res.json();
+
+      // Empty server + existing local maps → migrate them up to disk once.
+      if (Array.isArray(serverMaps) && serverMaps.length === 0) {
+        let local = [];
+        try {
+          local = await idbGetAllFull();
+        } catch {
+          local = [];
+        }
+        for (const map of local) {
+          try {
+            await fetch(`${API_BASE}/${map.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(map),
+            });
+          } catch {
+            // best effort; leave the IndexedDB copy in place
+          }
+        }
+      }
+      return 'server';
+    } catch {
+      return 'local';
+    }
+  })();
+  return modePromise;
+}
+
+/* ------------------------------------------------------------------ *
+ * Public API (stable across both storage modes)
+ * ------------------------------------------------------------------ */
+
+/** Retrieves all saved mind maps (metadata only), newest first. */
 export async function getAllMaps() {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      const maps = request.result || [];
-      // Return metadata sorted by lastUpdated descending
-      const metadata = maps.map(({ id, name, lastUpdated, nodeCount }) => ({
-        id,
-        name,
-        lastUpdated,
-        nodeCount,
-      })).sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
-      resolve(metadata);
-    };
-
-    request.onerror = (event) => {
-      reject(event.target.error);
-    };
-  });
+  if ((await detectMode()) === 'server') {
+    const res = await fetch(API_BASE);
+    if (!res.ok) throw new Error(`Failed to list maps (${res.status})`);
+    return res.json();
+  }
+  return idbGetAllMeta();
 }
 
-/**
- * Retrieves a single mind map by ID.
- * @param {string} id 
- * @returns {Promise<Object>}
- */
+/** Retrieves a single mind map by id (undefined if not found). */
 export async function getMap(id) {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(id);
-
-    request.onsuccess = () => {
-      resolve(request.result);
-    };
-
-    request.onerror = (event) => {
-      reject(event.target.error);
-    };
-  });
+  if ((await detectMode()) === 'server') {
+    const res = await fetch(`${API_BASE}/${id}`);
+    if (res.status === 404) return undefined;
+    if (!res.ok) throw new Error(`Failed to load map (${res.status})`);
+    return res.json();
+  }
+  return idbGet(id);
 }
 
-/**
- * Saves (inserts or updates) a mind map.
- * @param {Object} map 
- * @returns {Promise<Object>} The saved map
- */
+/** Saves (inserts or updates) a mind map. */
 export async function saveMap(map) {
-  const db = await initDB();
-  
-  // Calculate node count
   const nodeCount = map.nodes ? Object.keys(map.nodes).length : 0;
-  
-  const updatedMap = {
-    ...map,
-    nodeCount,
-    lastUpdated: new Date().toISOString(),
-  };
+  const updatedMap = { ...map, nodeCount, lastUpdated: new Date().toISOString() };
 
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(updatedMap);
-
-    request.onsuccess = () => {
-      resolve(updatedMap);
-    };
-
-    request.onerror = (event) => {
-      reject(event.target.error);
-    };
-  });
+  if ((await detectMode()) === 'server') {
+    const res = await fetch(`${API_BASE}/${map.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedMap),
+    });
+    if (!res.ok) throw new Error(`Failed to save map (${res.status})`);
+    return res.json();
+  }
+  await idbPut(updatedMap);
+  return updatedMap;
 }
 
-/**
- * Deletes a mind map.
- * @param {string} id 
- * @returns {Promise<void>}
- */
+/** Deletes a mind map. */
 export async function deleteMap(id) {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
-
-    request.onsuccess = () => {
-      resolve();
-    };
-
-    request.onerror = (event) => {
-      reject(event.target.error);
-    };
-  });
+  if ((await detectMode()) === 'server') {
+    const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error(`Failed to delete map (${res.status})`);
+    return;
+  }
+  await idbDelete(id);
 }
 
-/**
- * Duplicates a mind map.
- * @param {string} id 
- * @returns {Promise<Object>} The duplicated map
- */
+/** Duplicates a mind map. */
 export async function duplicateMap(id) {
   const map = await getMap(id);
   if (!map) throw new Error('Mind map not found');
 
   const newId = `map-${Date.now()}`;
-  const duplicatedMap = {
-    ...map,
-    id: newId,
-    name: `${map.name} Copy`,
-  };
-
+  const duplicatedMap = { ...map, id: newId, name: `${map.name} Copy` };
   return saveMap(duplicatedMap);
 }
 
-/**
- * Creates a brand new empty mind map object.
- * @param {string} [name]
- * @returns {Object}
- */
+/** Creates a brand new empty mind map object. */
 export function createNewMapData(name = 'Untitled Mind Map') {
   const id = `map-${Date.now()}`;
   return {
@@ -173,7 +193,7 @@ export function createNewMapData(name = 'Untitled Mind Map') {
         children: [],
         notes: '',
         isRoot: true,
-      }
-    }
+      },
+    },
   };
 }

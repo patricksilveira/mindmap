@@ -2,10 +2,12 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { handleMapsApi, getDataDir } from './mapStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = 5515;
+const DATA_DIR = getDataDir(__dirname);
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -19,7 +21,10 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
 };
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  // Mind map REST API (persists to disk under ./data) takes precedence.
+  if (await handleMapsApi(req, res, DATA_DIR)) return;
+
   // Get route path (stripping out any query params)
   const reqUrl = req.url || '/';
   const parsedPath = decodeURIComponent(reqUrl.split('?')[0]);
