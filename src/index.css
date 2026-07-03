@@ -573,6 +573,10 @@ input, button, textarea, select {
   width: 100%;
   height: 100%;
   pointer-events: none;
+  /* Node coordinates are centered on the root at (0,0), so many paths live in
+     negative space. Without this the SVG viewport clips them (SVG defaults to
+     overflow:hidden) and lines to left/upper nodes disappear. */
+  overflow: visible;
 }
 
 /* Node Elements Wrapper */
