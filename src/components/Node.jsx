@@ -1,33 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { FileText } from 'lucide-react';
 
-function Node({ 
-  node, 
-  layoutNode, 
-  isSelected, 
+function Node({
+  node,
+  layoutNode,
+  isSelected,
   isEditing,
+  initialEditChar,
   onStartEdit,
   onEndEdit,
-  onSelect, 
-  onUpdateText, 
-  onAddChild, 
-  onAddSibling, 
-  onDelete, 
-  onToggleCollapse 
+  onSelect,
+  onUpdateText,
+  onAddChild,
+  onAddSibling,
+  onDelete,
+  onToggleCollapse
 }) {
-  const [editValue, setEditValue] = useState(node.text);
   const inputRef = useRef(null);
+  // Set when the user cancels with Escape, so the blur handler skips saving.
+  const cancelRef = useRef(false);
 
-  // Sync state with node text if updated elsewhere
-  useEffect(() => {
-    setEditValue(node.text);
-  }, [node.text]);
-
-  // Focus input when editing starts
+  // Focus input when editing starts. With a type-to-edit seed the input is
+  // pre-filled (defaultValue) and the cursor sits at the end; otherwise select
+  // all so the first keystroke replaces the text.
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
-      inputRef.current.select();
+      if (!initialEditChar) {
+        inputRef.current.select();
+      }
     }
   }, [isEditing]);
 
@@ -42,11 +43,15 @@ function Node({
   };
 
   const handleBlur = () => {
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      onEndEdit();
+      return;
+    }
+    const value = inputRef.current ? inputRef.current.value.trim() : '';
     onEndEdit();
-    if (editValue.trim() !== '' && editValue !== node.text) {
-      onUpdateText(node.id, editValue.trim());
-    } else {
-      setEditValue(node.text); // reset to original
+    if (value !== '' && value !== node.text) {
+      onUpdateText(node.id, value);
     }
   };
 
@@ -55,9 +60,9 @@ function Node({
       e.preventDefault();
       inputRef.current.blur(); // Triggers blur/save logic
     } else if (e.key === 'Escape') {
-      setEditValue(node.text); // cancel change
-      onEndEdit();
       e.stopPropagation();
+      cancelRef.current = true; // discard changes
+      inputRef.current.blur();
     }
   };
 
@@ -112,8 +117,7 @@ function Node({
             ref={inputRef}
             type="text"
             className="node-input"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
+            defaultValue={initialEditChar ?? node.text}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}

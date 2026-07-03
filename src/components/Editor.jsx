@@ -45,6 +45,10 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
 
   const [selectedNodeId, setSelectedNodeId] = useState('root');
   const [editingNodeId, setEditingNodeId] = useState(null);
+  // When editing is triggered by typing a character, this seeds the input.
+  const [pendingEditChar, setPendingEditChar] = useState(null);
+  // Bumped to ask the canvas to recenter on root (Escape key).
+  const [recenterSignal, setRecenterSignal] = useState(0);
   const [layoutMode, setLayoutMode] = useState('split'); // 'split' or 'right'
   const [saveStatus, setSaveStatus] = useState('All changes saved'); // 'Saved', 'Saving...', 'Error'
   
@@ -441,8 +445,18 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         navigateNode('right');
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        setPendingEditChar(null);
+        setEditingNodeId(selectedNodeId);
       } else if (e.key === 'Escape') {
         setSelectedNodeId('root'); // reset focus
+        setRecenterSignal((s) => s + 1); // recenter viewport on root
+      } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // Type-to-edit: begin editing the selected node seeded with this key.
+        e.preventDefault();
+        setPendingEditChar(e.key);
+        setEditingNodeId(selectedNodeId);
       }
     };
 
@@ -582,8 +596,10 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
           selectedNodeId={selectedNodeId}
           onSelectNode={setSelectedNodeId}
           editingNodeId={editingNodeId}
-          onStartEdit={setEditingNodeId}
-          onEndEdit={() => setEditingNodeId(null)}
+          recenterSignal={recenterSignal}
+          pendingEditChar={pendingEditChar}
+          onStartEdit={(id) => { setPendingEditChar(null); setEditingNodeId(id); }}
+          onEndEdit={() => { setEditingNodeId(null); setPendingEditChar(null); }}
           onUpdateNodeText={handleUpdateNodeText}
           onAddChild={handleAddChild}
           onAddSibling={handleAddSibling}

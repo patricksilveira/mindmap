@@ -1,6 +1,6 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import Node from './Node';
-import { calculateLayout, ROOT_WIDTH, ROOT_HEIGHT, NODE_WIDTH, NODE_HEIGHT } from '../utils/layout';
+import { calculateLayout } from '../utils/layout';
 
 function MindMapCanvas({
   nodes,
@@ -15,7 +15,9 @@ function MindMapCanvas({
   onAddSibling,
   onDeleteNode,
   onToggleCollapse,
-  onReparentNode
+  onReparentNode,
+  recenterSignal,
+  pendingEditChar
 }) {
   const containerRef = useRef(null);
   
@@ -32,17 +34,27 @@ function MindMapCanvas({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [hoveredParentId, setHoveredParentId] = useState(null);
 
-  // Compute positions
-  const layout = calculateLayout(nodes, layoutMode);
+  // Compute positions (memoized: recomputed only when the tree or layout mode
+  // changes, not on every pan/drag mousemove render).
+  const layout = useMemo(() => calculateLayout(nodes, layoutMode), [nodes, layoutMode]);
 
-  // Center the root node in the middle of the viewport on initial load
-  useEffect(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setPanX(rect.width / 2);
-      setPanY(rect.height / 2);
-    }
+  // Center the root node (canvas origin) in the middle of the viewport.
+  const centerOnRoot = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setPanX(rect.width / 2);
+    setPanY(rect.height / 2);
   }, []);
+
+  // Center on initial load.
+  useEffect(() => {
+    centerOnRoot();
+  }, [centerOnRoot]);
+
+  // Recenter when the editor bumps the signal (Escape key).
+  useEffect(() => {
+    if (recenterSignal) centerOnRoot();
+  }, [recenterSignal, centerOnRoot]);
 
   // Window-level mouse listeners when panning to make the drag experience robust and smooth
   useEffect(() => {
@@ -66,11 +78,22 @@ function MindMapCanvas({
     };
   }, [isPanning, panStart]);
 
-  // Zooming via mouse wheel
+  // Zooming via mouse wheel, anchored on the cursor so the point under the
+  // pointer stays put instead of the map drifting toward the origin.
   const handleWheel = (e) => {
     e.preventDefault();
-    let newZoom = zoom - e.deltaY * 0.001;
-    newZoom = Math.max(0.4, Math.min(2.5, newZoom)); // constraints
+    const newZoom = Math.max(0.4, Math.min(2.5, zoom - e.deltaY * 0.001));
+    if (newZoom === zoom) return;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const ratio = newZoom / zoom;
+      // Keep the canvas point under the cursor fixed on screen.
+      setPanX(mouseX - (mouseX - panX) * ratio);
+      setPanY(mouseY - (mouseY - panY) * ratio);
+    }
     setZoom(newZoom);
   };
 
@@ -329,6 +352,7 @@ function MindMapCanvas({
                   layoutNode={layoutNode}
                   isSelected={isSelected}
                   isEditing={isEditing}
+                  initialEditChar={isEditing ? pendingEditChar : null}
                   onStartEdit={onStartEdit}
                   onEndEdit={onEndEdit}
                   onSelect={onSelectNode}
