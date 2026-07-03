@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import Node from './Node';
 import { calculateLayout } from '../utils/layout';
 
@@ -11,9 +11,6 @@ function MindMapCanvas({
   onStartEdit,
   onEndEdit,
   onUpdateNodeText,
-  onAddChild,
-  onAddSibling,
-  onDeleteNode,
   onToggleCollapse,
   onReparentNode,
   recenterSignal,
@@ -357,9 +354,6 @@ function MindMapCanvas({
                   onEndEdit={onEndEdit}
                   onSelect={onSelectNode}
                   onUpdateText={onUpdateNodeText}
-                  onAddChild={onAddChild}
-                  onAddSibling={onAddSibling}
-                  onDelete={onDeleteNode}
                   onToggleCollapse={onToggleCollapse}
                 />
                 

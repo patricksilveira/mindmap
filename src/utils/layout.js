@@ -19,7 +19,6 @@ export function calculateLayout(nodes, layoutMode = 'split') {
   if (!nodes || !nodes.root) return {};
 
   const layout = {};
-  const rootNode = nodes.root;
 
   // Initialize layout metadata for nodes
   const nodeMeta = {};

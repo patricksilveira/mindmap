@@ -11,9 +11,6 @@ function Node({
   onEndEdit,
   onSelect,
   onUpdateText,
-  onAddChild,
-  onAddSibling,
-  onDelete,
   onToggleCollapse
 }) {
   const inputRef = useRef(null);
@@ -30,7 +27,7 @@ function Node({
         inputRef.current.select();
       }
     }
-  }, [isEditing]);
+  }, [isEditing, initialEditChar]);
 
   if (!layoutNode) return null;
 

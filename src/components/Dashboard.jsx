@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, FileUp, Trash2, Copy, Moon, Sun, Network, Clock } from 'lucide-react';
 import { getAllMaps, saveMap, deleteMap, duplicateMap, createNewMapData } from '../utils/db';
 
@@ -7,14 +7,9 @@ function Dashboard({ onOpenMap, theme, toggleTheme }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load maps on component mount
-  useEffect(() => {
-    loadMaps();
-  }, []);
-
-  const loadMaps = async () => {
+  // Reusable reload (event-driven: after delete / duplicate / import).
+  const loadMaps = useCallback(async () => {
     try {
-      setIsLoading(true);
       const data = await getAllMaps();
       setMaps(data);
     } catch (error) {
@@ -22,7 +17,18 @@ function Dashboard({ onOpenMap, theme, toggleTheme }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Load maps on mount. setState happens after the async resolves (guarded
+  // against unmount), so nothing sets state synchronously in the effect body.
+  useEffect(() => {
+    let active = true;
+    getAllMaps()
+      .then((data) => { if (active) setMaps(data); })
+      .catch((error) => console.error('Failed to load mind maps:', error))
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const handleCreateNew = async () => {
     try {

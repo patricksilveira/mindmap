@@ -131,7 +131,6 @@ export function exportToSVG(map, layoutMode = 'split', isDarkMode = false) {
 
   // Background and text colors
   const bgColor = isDarkMode ? '#0f172a' : '#f8fafc';
-  const gridColor = isDarkMode ? '#1e293b' : '#e2e8f0';
   const textColor = isDarkMode ? '#f8fafc' : '#0f172a';
   const connectionColor = isDarkMode ? '#475569' : '#cbd5e1';
 

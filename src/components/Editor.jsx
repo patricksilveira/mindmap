@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useReducer } from 'react';
+import { useState, useEffect, useCallback, useRef, useReducer } from 'react';
 import {
   ArrowLeft, Network, Save, Download,
   Trash2, Plus, CornerDownRight, Keyboard, LayoutGrid, X,
@@ -27,7 +27,7 @@ const NODE_COLORS = [
 
 const QUICK_EMOJIS = ['💡', '🚀', '📅', '🎯', '✅', '❌', '⭐', '📝', '❓', '🔥', '💻', '🎨'];
 
-function Editor({ mapId, onBack, theme, toggleTheme }) {
+function Editor({ mapId, onBack, theme }) {
   const [history, dispatch] = useReducer(historyReducer, initialHistory);
   const mapData = history.present;
   const canUndo = history.past.length > 0;
@@ -601,9 +601,6 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
           onStartEdit={(id) => { setPendingEditChar(null); setEditingNodeId(id); }}
           onEndEdit={() => { setEditingNodeId(null); setPendingEditChar(null); }}
           onUpdateNodeText={handleUpdateNodeText}
-          onAddChild={handleAddChild}
-          onAddSibling={handleAddSibling}
-          onDeleteNode={handleDeleteNode}
           onToggleCollapse={handleToggleCollapse}
           onReparentNode={handleReparentNode}
         />

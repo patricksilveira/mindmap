@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Editor from './components/Editor';
 
@@ -42,11 +42,10 @@ function App() {
           toggleTheme={toggleTheme} 
         />
       ) : (
-        <Editor 
-          mapId={activeMapId} 
-          onBack={handleBackToDashboard} 
-          theme={theme} 
-          toggleTheme={toggleTheme} 
+        <Editor
+          mapId={activeMapId}
+          onBack={handleBackToDashboard}
+          theme={theme}
         />
       )}
     </div>
