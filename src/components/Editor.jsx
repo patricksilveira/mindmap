@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   ArrowLeft, Network, HelpCircle, Save, Download, 
   Trash2, Plus, CornerDownRight, Keyboard, LayoutGrid, X 
@@ -36,12 +36,17 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
+  // Skip the auto-save that would otherwise fire from the initial load, so
+  // merely opening a map doesn't bump its lastUpdated timestamp.
+  const skipNextSaveRef = useRef(true);
+
   // Load mind map from IndexedDB
   useEffect(() => {
     const fetchMap = async () => {
       try {
         const data = await getMap(mapId);
         if (data) {
+          skipNextSaveRef.current = true;
           setMapData(data);
           // Set layout mode if saved on map, default to split
           if (data.layoutMode) {
@@ -58,6 +63,13 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
   // Debounced auto-save to IndexedDB
   useEffect(() => {
     if (!mapData) return;
+
+    // The load path sets this so the state update it triggers isn't treated
+    // as a user edit. Consume it and skip exactly one save cycle.
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
 
     setSaveStatus('Saving...');
     const timer = setTimeout(async () => {
@@ -269,9 +281,10 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
     setMapData(prev => {
       if (!prev) return null;
       const node = prev.nodes[nodeId];
+      if (!node) return prev;
+
       const oldParentId = node.parentId;
-      
-      if (!node || !oldParentId || oldParentId === newParentId) return prev;
+      if (!oldParentId || oldParentId === newParentId) return prev;
 
       const updatedNodes = { ...prev.nodes };
 

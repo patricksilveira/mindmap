@@ -1,4 +1,4 @@
-import { calculateLayout, NODE_WIDTH, NODE_HEIGHT, ROOT_WIDTH, ROOT_HEIGHT } from './layout';
+import { calculateLayout } from './layout';
 
 /**
  * Converts a mind map into a hierarchical Markdown string.
@@ -154,10 +154,12 @@ export function exportToSVG(map, layoutMode = 'split', isDarkMode = false) {
     const childPos = layout[id];
     if (!parentPos || !childPos) return;
 
-    // Start coordinates (edge of parent)
+    // Start coordinates (edge of parent). Use the layout's dynamic widths so
+    // lines terminate at the real card edges (matching the on-screen canvas),
+    // not the fixed NODE_WIDTH/ROOT_WIDTH defaults.
     const side = childPos.side;
-    const parentWidth = node.parentId === 'root' ? ROOT_WIDTH : NODE_WIDTH;
-    const childWidth = NODE_WIDTH;
+    const parentWidth = parentPos.width;
+    const childWidth = childPos.width;
 
     const startX = parentPos.x + (side === 'right' ? parentWidth / 2 : -parentWidth / 2);
     const startY = parentPos.y;

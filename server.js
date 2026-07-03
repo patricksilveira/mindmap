@@ -22,9 +22,17 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   // Get route path (stripping out any query params)
   const reqUrl = req.url || '/';
-  const parsedPath = reqUrl.split('?')[0];
+  const parsedPath = decodeURIComponent(reqUrl.split('?')[0]);
   const relativePath = parsedPath === '/' ? 'index.html' : parsedPath;
-  const filePath = path.join(__dirname, 'dist', relativePath);
+  const distRoot = path.join(__dirname, 'dist');
+  const filePath = path.normalize(path.join(distRoot, relativePath));
+
+  // Reject any path that escapes the dist root (e.g. /../server.js)
+  if (filePath !== distRoot && !filePath.startsWith(distRoot + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden');
+    return;
+  }
 
   const extname = path.extname(filePath);
   const contentType = MIME_TYPES[extname] || 'application/octet-stream';
