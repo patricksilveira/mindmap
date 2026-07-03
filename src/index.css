@@ -369,6 +369,16 @@ input, button, textarea, select {
   color: var(--accent-danger);
 }
 
+.card-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.card-icon-btn:disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
 .card-icon-btn.duplicate:hover {
   color: var(--accent-primary);
 }

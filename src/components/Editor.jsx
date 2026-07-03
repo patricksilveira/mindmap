@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  ArrowLeft, Network, HelpCircle, Save, Download, 
-  Trash2, Plus, CornerDownRight, Keyboard, LayoutGrid, X 
+import React, { useState, useEffect, useCallback, useRef, useReducer } from 'react';
+import {
+  ArrowLeft, Network, Save, Download,
+  Trash2, Plus, CornerDownRight, Keyboard, LayoutGrid, X,
+  Undo2, Redo2
 } from 'lucide-react';
 import { getMap, saveMap } from '../utils/db';
+import { historyReducer, initialHistory } from '../utils/history';
 import { calculateLayout } from '../utils/layout';
 import { 
   exportToMarkdown, exportToText, exportToJSON, exportToSVG, downloadFile 
@@ -26,7 +28,21 @@ const NODE_COLORS = [
 const QUICK_EMOJIS = ['💡', '🚀', '📅', '🎯', '✅', '❌', '⭐', '📝', '❓', '🔥', '💻', '🎨'];
 
 function Editor({ mapId, onBack, theme, toggleTheme }) {
-  const [mapData, setMapData] = useState(null);
+  const [history, dispatch] = useReducer(historyReducer, initialHistory);
+  const mapData = history.present;
+  const canUndo = history.past.length > 0;
+  const canRedo = history.future.length > 0;
+
+  // setMapData-compatible shim so the existing mutation handlers stay unchanged.
+  // Accepts an updater fn (or value) plus an optional coalesceKey used to merge
+  // consecutive same-source edits (title/notes typing) into one undo entry.
+  const setMapData = useCallback((updater, coalesceKey) => {
+    dispatch({ type: 'SET', updater, coalesceKey });
+  }, []);
+
+  const handleUndo = useCallback(() => dispatch({ type: 'UNDO' }), []);
+  const handleRedo = useCallback(() => dispatch({ type: 'REDO' }), []);
+
   const [selectedNodeId, setSelectedNodeId] = useState('root');
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [layoutMode, setLayoutMode] = useState('split'); // 'split' or 'right'
@@ -47,7 +63,7 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
         const data = await getMap(mapId);
         if (data) {
           skipNextSaveRef.current = true;
-          setMapData(data);
+          dispatch({ type: 'RESET', present: data });
           // Set layout mode if saved on map, default to split
           if (data.layoutMode) {
             setLayoutMode(data.layoutMode);
@@ -103,9 +119,9 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
         }
       };
     });
-  }, []);
+  }, [setMapData]);
 
-  const handleUpdateNodeStyle = useCallback((nodeId, updates) => {
+  const handleUpdateNodeStyle = useCallback((nodeId, updates, coalesceKey) => {
     setMapData(prev => {
       if (!prev) return null;
       return {
@@ -118,8 +134,8 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
           }
         }
       };
-    });
-  }, []);
+    }, coalesceKey);
+  }, [setMapData]);
 
   const handleAddChild = useCallback((parentId) => {
     const newId = `node-${Date.now()}`;
@@ -161,7 +177,7 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
     });
     setSelectedNodeId(newId);
     setEditingNodeId(newId); // start editing immediately
-  }, []);
+  }, [setMapData]);
 
   const handleAddSibling = useCallback((nodeId) => {
     if (nodeId === 'root') return; // root cannot have siblings
@@ -207,13 +223,13 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
     });
     setSelectedNodeId(newId);
     setEditingNodeId(newId); // start editing immediately
-  }, []);
+  }, [setMapData]);
 
   const handleDeleteNode = useCallback((nodeId) => {
     if (nodeId === 'root') return; // root cannot be deleted
 
-    if (window.confirm('Delete this topic and all of its sub-branches?')) {
-      setMapData(prev => {
+    // No confirm dialog: deletion is undoable via Cmd/Ctrl+Z.
+    setMapData(prev => {
         if (!prev) return null;
 
         const updatedNodes = { ...prev.nodes };
@@ -257,9 +273,8 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
           ...prev,
           nodes: updatedNodes
         };
-      });
-    }
-  }, []);
+    });
+  }, [setMapData]);
 
   const handleToggleCollapse = useCallback((nodeId) => {
     setMapData(prev => {
@@ -275,7 +290,7 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
         }
       };
     });
-  }, []);
+  }, [setMapData]);
 
   const handleReparentNode = useCallback((nodeId, newParentId) => {
     setMapData(prev => {
@@ -320,7 +335,7 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
         nodes: updatedNodes
       };
     });
-  }, []);
+  }, [setMapData]);
 
   // Keyboard navigation logic between nodes
   const navigateNode = useCallback((direction) => {
@@ -390,6 +405,19 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
         return;
       }
 
+      // Undo / redo. Cmd/Ctrl+Z undoes, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redoes.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
+        return;
+      }
+      if (e.ctrlKey && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
       if (!selectedNodeId) return;
 
       if (e.key === 'Tab') {
@@ -420,7 +448,7 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodeId, handleAddChild, handleAddSibling, handleDeleteNode, navigateNode]);
+  }, [selectedNodeId, handleAddChild, handleAddSibling, handleDeleteNode, navigateNode, handleUndo, handleRedo]);
 
   // Export handlers
   const handleExport = (type) => {
@@ -462,7 +490,7 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
                 type="text"
                 className="map-title-input"
                 value={mapData.name}
-                onChange={(e) => setMapData(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => setMapData(prev => ({ ...prev, name: e.target.value }), 'name')}
                 title="Rename Mind Map"
               />
             )}
@@ -506,9 +534,29 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
             </button>
           </div>
 
+          {/* Undo / redo */}
+          <div style={{ display: 'flex', gap: '6px', borderRight: '1px solid var(--border-color)', paddingRight: '12px' }}>
+            <button
+              className="card-icon-btn"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Undo (Cmd/Ctrl+Z)"
+            >
+              <Undo2 size={20} />
+            </button>
+            <button
+              className="card-icon-btn"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Redo (Cmd/Ctrl+Shift+Z)"
+            >
+              <Redo2 size={20} />
+            </button>
+          </div>
+
           {/* Map layout modes */}
-          <button 
-            className="card-icon-btn" 
+          <button
+            className="card-icon-btn"
             onClick={() => setLayoutMode(prev => prev === 'split' ? 'right' : 'split')}
             title={`Layout: ${layoutMode === 'split' ? 'Symmetrical Split' : 'Right Tree'}`}
           >
@@ -602,7 +650,7 @@ function Editor({ mapId, onBack, theme, toggleTheme }) {
               className="notes-textarea"
               placeholder="Add description notes or references about this topic..."
               value={selectedNode.notes || ''}
-              onChange={(e) => handleUpdateNodeStyle(selectedNodeId, { notes: e.target.value })}
+              onChange={(e) => handleUpdateNodeStyle(selectedNodeId, { notes: e.target.value }, `notes:${selectedNodeId}`)}
             />
           </div>
 
