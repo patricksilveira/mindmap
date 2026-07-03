@@ -1,6 +1,6 @@
 # MindMap Local 💡
 
-An offline-first, private, and premium mind mapping application inspired by MindMeister. It stores all maps directly on your machine inside your browser's local database (`IndexedDB`) and requires **zero terminal commands to launch**.
+An offline-first, private, and premium mind mapping application inspired by MindMeister. It stores all maps directly on your machine as JSON files on disk (in the `data/` folder next to the app) and requires **zero terminal commands to launch**.
 
 ---
 
@@ -19,8 +19,9 @@ You don't need to use the terminal to start the app.
 
 ## ✨ Features
 
-- **Double-Click Edit:** Double-click any node on the canvas to instantly edit its text inline.
-- **Auto-Save:** The app automatically saves your modifications to a local browser database on every change (with a 800ms debounce safety).
+- **Double-Click Edit:** Double-click any node on the canvas to instantly edit its text inline (or press `F2`, or just start typing on a selected node).
+- **Undo / Redo:** Full undo history — `Cmd/Ctrl+Z` to undo, `Cmd/Ctrl+Shift+Z` (or `Ctrl+Y`) to redo. Covers text edits, adds, deletes, re-parenting, colors, emoji, and notes.
+- **Auto-Save to Disk:** The app automatically saves your modifications to JSON files on disk (in `data/`) on every change (with an 800ms debounce). Maps survive clearing your browser data, switching browsers, and are backed up by Time Machine. If the local server isn't running, it transparently falls back to the browser's `IndexedDB`.
 - **Vibrant Node Colors:** Choose between a curated palette of pastel and deep colors (Coral, Emerald, Sky, Indigo, Amber, etc.).
 - **Emoji Decorators:** Instantly badge nodes with emojis to make your diagrams visually appealing.
 - **Text Notes:** Add descriptions or longer references to any node. A small sheet icon will appear on nodes with active notes.
@@ -45,6 +46,7 @@ This app is fully optimized for speed and keyboard-driven usage:
 | **Add Sibling Node** (Same Level) | `Enter` |
 | **Delete Selected Node & Sub-branches** | `Delete` or `Backspace` |
 | **Edit Topic Text** | `Double Click` or `F2` or just type |
+| **Undo / Redo** | `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` |
 | **Navigate Up / Down Sibling** | `Arrow Up` / `Arrow Down` |
 | **Navigate Left / Right** (Inwards/Outwards) | `Arrow Left` / `Arrow Right` |
 | **Recenter Focus to Root Node** | `Escape` |
@@ -56,5 +58,7 @@ This app is fully optimized for speed and keyboard-driven usage:
 If you make any changes to the source code files, you can rebuild the project using Node.js:
 
 1. **Install dependencies:** `npm install` (already done).
-2. **Start Dev Server:** `npm run dev` (to iterate with Hot Module Replacement).
-3. **Compile static bundle:** `npm run build` (builds code to the `dist` folder which is served by the launcher).
+2. **Start Dev Server:** `npm run dev` (to iterate with Hot Module Replacement; the dev server also serves the `/api/maps` disk store).
+3. **Run tests:** `npm test` (Vitest suite for layout, exports, undo history, and the disk store).
+4. **Lint:** `npm run lint`.
+5. **Compile static bundle:** `npm run build` (builds code to the `dist` folder which is served by the launcher).

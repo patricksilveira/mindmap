@@ -55,6 +55,10 @@ function Node({
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // Stop the event reaching the window keydown handler: blur() below
+      // changes activeElement synchronously, which would defeat that handler's
+      // "editing an input?" guard and spawn a spurious sibling node.
+      e.stopPropagation();
       inputRef.current.blur(); // Triggers blur/save logic
     } else if (e.key === 'Escape') {
       e.stopPropagation();
