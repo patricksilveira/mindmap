@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Get the directory of the launcher script
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Project root is three levels up from Contents/MacOS/
+PROJECT_ROOT="$( cd "$DIR/../../.." && pwd )"
+
+cd "$PROJECT_ROOT"
+
+PORT=5515
+URL="http://localhost:$PORT"
+
+# Check if the Node server is already running on the port
+nc -z localhost $PORT > /dev/null 2>&1
+SERVER_ALREADY_RUNNING=$?
+
+if [ $SERVER_ALREADY_RUNNING -ne 0 ]; then
+  # Check if Node is installed and available
+  export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+  
+  if ! command -v node &> /dev/null; then
+    osascript -e 'display dialog "Node.js is required to run MindMap Local but was not found in your PATH. Please install Node.js." buttons {"OK"} default button "OK" with icon stop'
+    exit 1
+  fi
+  
+  # Start node server in the background
+  node server.js > /dev/null 2>&1 &
+  
+  # Wait briefly for server to spin up
+  for i in {1..10}; do
+    nc -z localhost $PORT > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+      break
+    fi
+    sleep 0.2
+  done
+fi
+
+# Open browser
+open "$URL"
+
+# Send macOS system notification
+osascript -e 'display notification "Opened in your default browser at '"$URL"'." with title "MindMap Local"'
+
+exit 0
