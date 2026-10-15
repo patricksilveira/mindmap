@@ -12,10 +12,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/offline--first-100%25-brightgreen?style=flat-square" alt="Offline First" />
   <img src="https://img.shields.io/badge/privacy-local%20disk%20only-blue?style=flat-square" alt="Local Disk Only" />
+  <img src="https://img.shields.io/badge/built%20with-Google%20Antigravity%20%26%20Gemini-orange?style=flat-square&logo=google" alt="Built with Google Antigravity & Gemini" />
   <img src="https://img.shields.io/badge/tests-39%20passing-success?style=flat-square" alt="Tests 39 passing" />
-  <img src="https://img.shields.io/badge/react-19-61dafb?style=flat-square&logo=react" alt="React 19" />
-  <img src="https://img.shields.io/badge/vite-8-646cff?style=flat-square&logo=vite" alt="Vite 8" />
-  <img src="https://img.shields.io/badge/style-retro%20punk-ff007f?style=flat-square" alt="Retro Punk" />
+  <img src="https://img.shields.io/badge/license-Personal%20Use%20Only-critical?style=flat-square" alt="Personal Use Only" />
 </p>
 
 ---
@@ -131,6 +130,15 @@ npm run build
 
 ---
 
-## 📄 License
+## 🤖 Built With Google Antigravity & Gemini
 
-MIT License. Free for personal and commercial use.
+This project is actively developed and pair-programmed with **Google Antigravity** using **Gemini** advanced models for full-stack engineering, architectural design, automated test suites, and retro-punk visual asset creation.
+
+---
+
+## 📄 License & Terms
+
+**Personal & Private Use Only.**  
+Copyright (c) 2026 Patrick Silveira. All rights reserved.  
+
+This software is strictly licensed for personal, private, and educational use. **Commercial use, redistribution, and sublicensing are strictly prohibited.** See the [LICENSE](LICENSE) file for complete terms.
