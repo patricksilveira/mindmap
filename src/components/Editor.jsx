@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useRef, useReducer } from 'react';
 import {
   ArrowLeft, Network, Save, Download,
   Trash2, Plus, CornerDownRight, Keyboard, LayoutGrid, X,
-  Undo2, Redo2
+  Undo2, Redo2, Sparkles
 } from 'lucide-react';
 import { getMap, saveMap } from '../utils/db';
 import { historyReducer, initialHistory } from '../utils/history';
 import { calculateLayout } from '../utils/layout';
+import { unescapeMarkdown } from '../utils/markdownImport';
 import { 
   exportToMarkdown, exportToText, exportToJSON, exportToSVG, downloadFile 
 } from '../utils/export';
@@ -67,7 +68,31 @@ function Editor({ mapId, onBack, theme }) {
         const data = await getMap(mapId);
         if (data) {
           skipNextSaveRef.current = true;
-          dispatch({ type: 'RESET', present: data });
+          // Auto-clean any residual backslash escapes from previous markdown imports
+          let sanitizedMap = data;
+          if (data.nodes) {
+            let changed = false;
+            const cleanedNodes = {};
+            for (const [id, node] of Object.entries(data.nodes)) {
+              if (!node || typeof node.text !== 'string') {
+                cleanedNodes[id] = node;
+                continue;
+              }
+              const cleanText = unescapeMarkdown(node.text);
+              const cleanNotes = node.notes ? unescapeMarkdown(node.notes) : node.notes;
+              if (cleanText !== node.text || cleanNotes !== node.notes) {
+                changed = true;
+                cleanedNodes[id] = { ...node, text: cleanText, notes: cleanNotes };
+              } else {
+                cleanedNodes[id] = node;
+              }
+            }
+            if (changed) {
+              sanitizedMap = { ...data, nodes: cleanedNodes };
+              saveMap(sanitizedMap).catch(console.error);
+            }
+          }
+          dispatch({ type: 'RESET', present: sanitizedMap });
           // Set layout mode if saved on map, default to split
           if (data.layoutMode) {
             setLayoutMode(data.layoutMode);
@@ -79,6 +104,29 @@ function Editor({ mapId, onBack, theme }) {
     };
     fetchMap();
   }, [mapId]);
+
+  const handleCleanFormatting = useCallback(() => {
+    setMapData(prev => {
+      if (!prev || !prev.nodes) return null;
+      let changed = false;
+      const cleanedNodes = {};
+      for (const [id, node] of Object.entries(prev.nodes)) {
+        if (!node || typeof node.text !== 'string') {
+          cleanedNodes[id] = node;
+          continue;
+        }
+        const cleanText = unescapeMarkdown(node.text);
+        const cleanNotes = node.notes ? unescapeMarkdown(node.notes) : node.notes;
+        if (cleanText !== node.text || cleanNotes !== node.notes) {
+          changed = true;
+          cleanedNodes[id] = { ...node, text: cleanText, notes: cleanNotes };
+        } else {
+          cleanedNodes[id] = node;
+        }
+      }
+      return changed ? { ...prev, nodes: cleanedNodes } : prev;
+    });
+  }, [setMapData]);
 
   // Debounced auto-save to IndexedDB
   useEffect(() => {
@@ -352,6 +400,31 @@ function Editor({ mapId, onBack, theme }) {
     const nodesList = mapData.nodes;
     const currentNode = nodesList[selectedNodeId];
 
+    if (layoutMode === 'org') {
+      if (direction === 'down') {
+        const activeChildren = (currentNode.children || []).filter(id => layout[id]);
+        if (activeChildren.length > 0) {
+          setSelectedNodeId(activeChildren[0]);
+        }
+      } else if (direction === 'up') {
+        if (selectedNodeId !== 'root' && currentNode.parentId) {
+          setSelectedNodeId(currentNode.parentId);
+        }
+      } else if (direction === 'left' || direction === 'right') {
+        if (selectedNodeId === 'root') return;
+        const parentNode = nodesList[currentNode.parentId];
+        if (!parentNode) return;
+        const siblings = parentNode.children.filter(id => layout[id]);
+        const index = siblings.indexOf(selectedNodeId);
+        if (direction === 'left' && index > 0) {
+          setSelectedNodeId(siblings[index - 1]);
+        } else if (direction === 'right' && index < siblings.length - 1) {
+          setSelectedNodeId(siblings[index + 1]);
+        }
+      }
+      return;
+    }
+
     if (direction === 'up' || direction === 'down') {
       // Navigate to previous/next sibling
       if (selectedNodeId === 'root') return;
@@ -497,6 +570,13 @@ function Editor({ mapId, onBack, theme }) {
           <button className="card-icon-btn" onClick={onBack} title="Back to Dashboard" style={{ color: 'var(--text-primary)' }}>
             <ArrowLeft size={20} />
           </button>
+          <img 
+            src="/app-icon.png" 
+            alt="MindMap Local" 
+            style={{ width: '28px', height: '28px', borderRadius: '7px', cursor: 'pointer' }}
+            onClick={onBack}
+            title="Voltar ao Dashboard"
+          />
           
           <div className="map-title-wrapper">
             {mapData && (
@@ -569,13 +649,20 @@ function Editor({ mapId, onBack, theme }) {
           </div>
 
           {/* Map layout modes */}
-          <button
-            className="card-icon-btn"
-            onClick={() => setLayoutMode(prev => prev === 'split' ? 'right' : 'split')}
-            title={`Layout: ${layoutMode === 'split' ? 'Symmetrical Split' : 'Right Tree'}`}
-          >
-            <LayoutGrid size={20} style={{ color: layoutMode === 'right' ? 'var(--accent-primary)' : 'var(--text-primary)' }} />
-          </button>
+          <div className="layout-select-wrapper">
+            <LayoutGrid size={16} className="layout-select-icon" />
+            <select
+              className="layout-select"
+              value={layoutMode}
+              onChange={(e) => setLayoutMode(e.target.value)}
+              title="Layout do Mapa Mental"
+            >
+              <option value="split">Mind Map (Radial)</option>
+              <option value="org">Organograma</option>
+              <option value="right">Árvore Direita</option>
+              <option value="left">Árvore Esquerda</option>
+            </select>
+          </div>
 
           <button className="card-icon-btn" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts">
             <Keyboard size={20} />
@@ -614,7 +701,17 @@ function Editor({ mapId, onBack, theme }) {
       {selectedNode && (
         <aside className="inspector-panel glass-panel">
           <div className="inspector-header">
-            <h3 style={{ fontSize: '1.1rem' }}>Customize Node</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.1rem' }}>Customize Node</h3>
+              <button
+                className="card-icon-btn"
+                onClick={handleCleanFormatting}
+                title="Limpar formatação do mapa (remove barras invertidas e formatação indesejada)"
+                style={{ padding: '4px' }}
+              >
+                <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
+              </button>
+            </div>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {selectedNodeId}</span>
           </div>
 

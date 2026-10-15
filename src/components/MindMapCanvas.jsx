@@ -270,23 +270,41 @@ function MindMapCanvas({
             const parentWidth = parentPos.width;
             const childWidth = childPos.width;
 
-            let startX = parentPos.x + (side === 'right' ? parentWidth / 2 : -parentWidth / 2);
-            let startY = parentPos.y;
-            
-            // Adjust coordinates if dragged
-            let endX = childPos.x - (side === 'right' ? childWidth / 2 : -childWidth / 2);
-            let endY = childPos.y;
+            let startX, startY, endX, endY, cp1X, cp1Y, cp2X, cp2Y;
 
-            if (id === draggedNodeId) {
-              endX += dragOffset.x;
-              endY += dragOffset.y;
+            if (side === 'bottom') {
+              startX = parentPos.x;
+              startY = parentPos.y + parentPos.height / 2;
+              endX = childPos.x;
+              endY = childPos.y - childPos.height / 2;
+
+              if (id === draggedNodeId) {
+                endX += dragOffset.x;
+                endY += dragOffset.y;
+              }
+
+              const controlOffset = Math.min(60, Math.abs(endY - startY) * 0.5);
+              cp1X = startX;
+              cp1Y = startY + controlOffset;
+              cp2X = endX;
+              cp2Y = endY - controlOffset;
+            } else {
+              startX = parentPos.x + (side === 'right' ? parentWidth / 2 : -parentWidth / 2);
+              startY = parentPos.y;
+              endX = childPos.x - (side === 'right' ? childWidth / 2 : -childWidth / 2);
+              endY = childPos.y;
+
+              if (id === draggedNodeId) {
+                endX += dragOffset.x;
+                endY += dragOffset.y;
+              }
+
+              const controlOffset = Math.min(80, Math.abs(endX - startX) * 0.5);
+              cp1X = startX + (side === 'right' ? controlOffset : -controlOffset);
+              cp1Y = startY;
+              cp2X = endX - (side === 'right' ? controlOffset : -controlOffset);
+              cp2Y = endY;
             }
-
-            const controlOffset = Math.min(80, Math.abs(endX - startX) * 0.5);
-            const cp1X = startX + (side === 'right' ? controlOffset : -controlOffset);
-            const cp1Y = startY;
-            const cp2X = endX - (side === 'right' ? controlOffset : -controlOffset);
-            const cp2Y = endY;
 
             const strokeColor = node.color || parentPos.color || 'var(--border-color)';
             

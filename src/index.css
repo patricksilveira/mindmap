@@ -600,7 +600,6 @@ input, button, textarea, select {
   display: flex;
   align-items: center;
   padding: 10px 16px;
-  width: 180px;
   min-height: 44px;
   cursor: pointer;
   transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s;
@@ -620,7 +619,6 @@ input, button, textarea, select {
 }
 
 .node-card.root {
-  width: 200px;
   min-height: 56px;
   border-radius: 14px;
   border: 3px solid var(--accent-primary);
@@ -639,9 +637,9 @@ input, button, textarea, select {
 .node-text {
   font-size: 0.85rem;
   font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
   width: 100%;
   color: var(--text-primary);
 }
@@ -651,7 +649,7 @@ input, button, textarea, select {
   text-align: center;
 }
 
-/* Input when editing node */
+/* Input / Textarea when editing node */
 .node-input {
   width: 100%;
   border: none;
@@ -662,6 +660,12 @@ input, button, textarea, select {
   padding: 0;
   margin: 0;
   color: var(--text-primary);
+  resize: none;
+  overflow: hidden;
+  font-family: inherit;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .node-card.root .node-input {
@@ -691,6 +695,15 @@ input, button, textarea, select {
 
 .node-side-bar.left {
   right: 0;
+}
+
+.node-side-bar.bottom {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  width: auto;
+  height: 4px;
+  bottom: auto;
 }
 
 /* Node Expand/Collapse handle button */
@@ -726,6 +739,54 @@ input, button, textarea, select {
 
 .node-toggle-btn.left {
   left: -8px;
+}
+
+.node-toggle-btn.bottom {
+  top: auto;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.node-toggle-btn.bottom:hover {
+  transform: translateX(-50%) scale(1.1);
+}
+
+/* Layout selector in toolbar */
+.layout-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.layout-select-icon {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+  color: var(--text-secondary);
+}
+
+.layout-select {
+  padding: 6px 12px 6px 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  appearance: auto;
+}
+
+.layout-select:hover {
+  border-color: var(--border-hover);
+  background-color: var(--bg-tertiary);
+}
+
+.layout-select:focus {
+  border-color: var(--border-focus);
 }
 
 /* Right Sidebar Inspector panel */

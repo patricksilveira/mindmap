@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, FileUp, Trash2, Copy, Moon, Sun, Network, Clock } from 'lucide-react';
+import { Plus, Search, FileUp, Trash2, Copy, Moon, Sun, Network, Clock, FileText, X } from 'lucide-react';
 import { getAllMaps, saveMap, deleteMap, duplicateMap, createNewMapData } from '../utils/db';
+import { parseMarkdownToMindMap } from '../utils/markdownImport';
 
 function Dashboard({ onOpenMap, theme, toggleTheme }) {
   const [maps, setMaps] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showMarkdownModal, setShowMarkdownModal] = useState(false);
+  const [pastedMarkdown, setPastedMarkdown] = useState('');
 
   // Reusable reload (event-driven: after delete / duplicate / import).
   const loadMaps = useCallback(async () => {
@@ -66,37 +69,65 @@ function Dashboard({ onOpenMap, theme, toggleTheme }) {
     const file = e.target.files[0];
     if (!file) return;
 
+    const isMarkdown = file.name.endsWith('.md') || file.name.endsWith('.markdown') || file.name.endsWith('.txt');
+
     const reader = new FileReader();
     reader.onload = async (event) => {
+      const content = event.target.result;
       try {
-        const mapData = JSON.parse(event.target.result);
-        
-        // Basic validation of mindmap structure
-        if (!mapData || !mapData.nodes || !mapData.nodes.root) {
-          alert('Invalid mind map file structure. Missing root node.');
+        let importedMap = null;
+
+        if (isMarkdown) {
+          const fallbackName = file.name.replace(/\.[^/.]+$/, '');
+          importedMap = parseMarkdownToMindMap(content, fallbackName);
+        } else {
+          try {
+            const mapData = JSON.parse(content);
+            if (mapData && mapData.nodes && mapData.nodes.root) {
+              const newId = `map-${Date.now()}`;
+              importedMap = {
+                ...mapData,
+                id: newId,
+                name: mapData.name ? `${mapData.name} (Imported)` : 'Imported Mind Map',
+                lastUpdated: new Date().toISOString()
+              };
+            }
+          } catch {
+            // Fallback to Markdown parser
+            const fallbackName = file.name.replace(/\.[^/.]+$/, '');
+            importedMap = parseMarkdownToMindMap(content, fallbackName);
+          }
+        }
+
+        if (!importedMap) {
+          alert('Could not parse mind map. Make sure it is valid JSON or Markdown.');
           return;
         }
 
-        // Generate a new ID and current timestamps to prevent overwrites
-        const newId = `map-${Date.now()}`;
-        const importedMap = {
-          ...mapData,
-          id: newId,
-          name: mapData.name ? `${mapData.name} (Imported)` : 'Imported Mind Map',
-          lastUpdated: new Date().toISOString()
-        };
-
         await saveMap(importedMap);
-        loadMaps();
-        alert('Mind map imported successfully!');
+        await loadMaps();
+        onOpenMap(importedMap.id);
       } catch (error) {
-        console.error('Failed to parse JSON file:', error);
-        alert('Failed to import. Ensure the file is a valid .mindmap or JSON file.');
+        console.error('Import error:', error);
+        alert(`Failed to import: ${error.message || 'Invalid format'}`);
       }
     };
     reader.readAsText(file);
-    // Reset file input value so same file can be selected again
     e.target.value = null;
+  };
+
+  const handleCreateFromMarkdown = async () => {
+    if (!pastedMarkdown.trim()) return;
+    try {
+      const newMap = parseMarkdownToMindMap(pastedMarkdown);
+      await saveMap(newMap);
+      setShowMarkdownModal(false);
+      setPastedMarkdown('');
+      await loadMaps();
+      onOpenMap(newMap.id);
+    } catch (error) {
+      alert(`Invalid Markdown: ${error.message}`);
+    }
   };
 
   // Helper to format timestamps relative to current time
@@ -132,7 +163,14 @@ function Dashboard({ onOpenMap, theme, toggleTheme }) {
     <div className="dashboard-view">
       <header className="dashboard-header">
         <div className="dashboard-title-area">
-          <h1>MindMap Local</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '6px' }}>
+            <img 
+              src="/app-icon.png" 
+              alt="MindMap Local" 
+              style={{ width: '44px', height: '44px', borderRadius: '10px', boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)' }} 
+            />
+            <h1 style={{ margin: 0 }}>MindMap Local</h1>
+          </div>
           <p>Create, organize, and export your thoughts locally.</p>
         </div>
         <div className="dashboard-actions">
@@ -141,16 +179,21 @@ function Dashboard({ onOpenMap, theme, toggleTheme }) {
             <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
           </button>
           
-          <label className="btn btn-secondary" style={{ display: 'inline-flex', cursor: 'pointer' }}>
+          <label className="btn btn-secondary" style={{ display: 'inline-flex', cursor: 'pointer' }} title="Import .mindmap, .json, or .md file">
             <FileUp size={18} />
             <span>Import</span>
             <input 
               type="file" 
-              accept=".json,.mindmap" 
+              accept=".json,.mindmap,.md,.markdown,.txt" 
               onChange={handleImport} 
               style={{ display: 'none' }} 
             />
           </label>
+
+          <button className="btn btn-secondary" onClick={() => setShowMarkdownModal(true)} title="Create map by pasting Markdown text">
+            <FileText size={18} />
+            <span>Paste Markdown</span>
+          </button>
 
           <button className="btn btn-primary" onClick={handleCreateNew}>
             <Plus size={18} />
@@ -238,6 +281,43 @@ function Dashboard({ onOpenMap, theme, toggleTheme }) {
               <span>Get Started</span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* Markdown Paste Modal */}
+      {showMarkdownModal && (
+        <div className="modal-overlay" onClick={() => setShowMarkdownModal(false)}>
+          <div className="modal-content glass-panel" style={{ width: '560px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Import from Markdown</h3>
+              <button className="card-icon-btn" onClick={() => setShowMarkdownModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '-8px' }}>
+              Paste your Markdown outline with headings (<code>#</code>, <code>##</code>) or indented bullet lists (<code>-</code>, <code>*</code>):
+            </p>
+            <textarea
+              className="notes-textarea"
+              style={{ minHeight: '220px', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.4' }}
+              placeholder={`# My Project\n- 🚀 Phase 1\n  - Task A\n  - Task B *(Note: Urgent)*\n- 🎯 Phase 2\n  - Launch MVP`}
+              value={pastedMarkdown}
+              onChange={(e) => setPastedMarkdown(e.target.value)}
+              autoFocus
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+              <button className="btn btn-secondary" onClick={() => setShowMarkdownModal(false)}>
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleCreateFromMarkdown}
+                disabled={!pastedMarkdown.trim()}
+              >
+                Create Mind Map
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

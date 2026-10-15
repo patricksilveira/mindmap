@@ -17,7 +17,7 @@ function Node({
   // Set when the user cancels with Escape, so the blur handler skips saving.
   const cancelRef = useRef(false);
 
-  // Focus input when editing starts. With a type-to-edit seed the input is
+  // Focus textarea when editing starts. With a type-to-edit seed the textarea is
   // pre-filled (defaultValue) and the cursor sits at the end; otherwise select
   // all so the first keystroke replaces the text.
   useEffect(() => {
@@ -26,6 +26,8 @@ function Node({
       if (!initialEditChar) {
         inputRef.current.select();
       }
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
     }
   }, [isEditing, initialEditChar]);
 
@@ -54,17 +56,33 @@ function Node({
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
-      e.preventDefault();
-      // Stop the event reaching the window keydown handler: blur() below
-      // changes activeElement synchronously, which would defeat that handler's
-      // "editing an input?" guard and spawn a spurious sibling node.
-      e.stopPropagation();
-      inputRef.current.blur(); // Triggers blur/save logic
+      if (e.shiftKey) {
+        // Shift+Enter creates a new line within the node text
+        e.stopPropagation();
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
+          }
+        }, 0);
+      } else {
+        e.preventDefault();
+        // Stop the event reaching the window keydown handler: blur() below
+        // changes activeElement synchronously, which would defeat that handler's
+        // "editing an input?" guard and spawn a spurious sibling node.
+        e.stopPropagation();
+        inputRef.current.blur(); // Triggers blur/save logic
+      }
     } else if (e.key === 'Escape') {
       e.stopPropagation();
       cancelRef.current = true; // discard changes
       inputRef.current.blur();
     }
+  };
+
+  const handleInput = (e) => {
+    e.target.style.height = 'auto';
+    e.target.style.height = `${e.target.scrollHeight}px`;
   };
 
   const handleClick = (e) => {
@@ -77,7 +95,7 @@ function Node({
     borderColor: node.color || (isRoot ? 'var(--accent-primary)' : 'var(--border-color)'),
   };
 
-  // Style properties for layout placement (using dynamic width)
+  // Style properties for layout placement (using dynamic width and height)
   const style = {
     left: `${x - width / 2}px`,
     top: `${y - height / 2}px`,
@@ -98,7 +116,7 @@ function Node({
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Node Accent Left/Right strip (tells which direction layout flows) */}
+      {/* Node Accent strip (tells which direction layout flows) */}
       {!isRoot && (
         <div 
           className={`node-side-bar ${side}`}
@@ -108,17 +126,18 @@ function Node({
 
       <div className="node-card-content">
         {node.emoji && (
-          <span style={{ fontSize: '1.1rem', marginRight: '2px', flexShrink: 0 }}>
+          <span style={{ fontSize: '1.1rem', marginRight: '2px', flexShrink: 0, alignSelf: 'flex-start' }}>
             {node.emoji}
           </span>
         )}
 
         {isEditing ? (
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
+            rows={1}
             className="node-input"
             defaultValue={initialEditChar ?? node.text}
+            onInput={handleInput}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}

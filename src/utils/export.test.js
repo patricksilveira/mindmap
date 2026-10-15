@@ -60,4 +60,25 @@ describe('exportToSVG', () => {
     expect(svg).toContain(`${dynamicEndX} ${child.y}"`);
     expect(svg).not.toContain(`${fixedEndX} ${child.y}"`);
   });
+
+  it('renders multiline text with tspan elements in SVG export', () => {
+    const nodes = {
+      root: { id: 'root', text: 'R', children: ['multi'] },
+      multi: { id: 'multi', text: 'Line 1\nLine 2', parentId: 'root', children: [] },
+    };
+    const svg = exportToSVG({ nodes }, 'right', false);
+    expect(svg).toContain('<tspan');
+    expect(svg).toContain('Line 1');
+    expect(svg).toContain('Line 2');
+  });
+
+  it('renders organograma layout in SVG export with bottom side connections', () => {
+    const nodes = {
+      root: { id: 'root', text: 'R', children: ['a'] },
+      a: { id: 'a', text: 'Child', parentId: 'root', children: [] },
+    };
+    const svg = exportToSVG({ nodes }, 'org', false);
+    expect(svg).toContain('<path d="M');
+    expect(svg).toBeDefined();
+  });
 });

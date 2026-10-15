@@ -74,4 +74,42 @@ describe('calculateLayout', () => {
     expect(layout.wide.width).toBeLessThanOrEqual(300);
     expect(layout.thin.width).toBeGreaterThanOrEqual(120);
   });
+
+  it('calculates organograma (org) layout with side bottom and vertical progression', () => {
+    const nodes = {
+      root: { id: 'root', text: 'CEO', children: ['vp1', 'vp2'] },
+      vp1: { id: 'vp1', text: 'VP Tech', parentId: 'root', children: [] },
+      vp2: { id: 'vp2', text: 'VP Product', parentId: 'root', children: [] },
+    };
+    const layout = calculateLayout(nodes, 'org');
+    expect(layout.root.side).toBe('root');
+    expect(layout.vp1.side).toBe('bottom');
+    expect(layout.vp2.side).toBe('bottom');
+    expect(layout.vp1.y).toBeGreaterThan(layout.root.y);
+    expect(layout.vp2.y).toBeGreaterThan(layout.root.y);
+    expect(layout.vp1.x).not.toBe(layout.vp2.x);
+  });
+
+  it('places all children on the left in left tree mode', () => {
+    const nodes = {
+      root: { id: 'root', text: 'R', children: ['a', 'b'] },
+      a: { id: 'a', text: 'A', parentId: 'root', children: [] },
+      b: { id: 'b', text: 'B', parentId: 'root', children: [] },
+    };
+    const layout = calculateLayout(nodes, 'left');
+    expect(layout.a.side).toBe('left');
+    expect(layout.b.side).toBe('left');
+    expect(layout.a.x).toBeLessThan(0);
+    expect(layout.b.x).toBeLessThan(0);
+  });
+
+  it('increases node height for multiline text', () => {
+    const nodes = {
+      root: { id: 'root', text: 'R', children: ['short', 'multiline'] },
+      short: { id: 'short', text: 'Single line text', parentId: 'root', children: [] },
+      multiline: { id: 'multiline', text: 'Line 1\nLine 2\nLine 3', parentId: 'root', children: [] },
+    };
+    const layout = calculateLayout(nodes, 'right');
+    expect(layout.multiline.height).toBeGreaterThan(layout.short.height);
+  });
 });

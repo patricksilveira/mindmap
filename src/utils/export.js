@@ -160,17 +160,31 @@ export function exportToSVG(map, layoutMode = 'split', isDarkMode = false) {
     const parentWidth = parentPos.width;
     const childWidth = childPos.width;
 
-    const startX = parentPos.x + (side === 'right' ? parentWidth / 2 : -parentWidth / 2);
-    const startY = parentPos.y;
-    const endX = childPos.x - (side === 'right' ? childWidth / 2 : -childWidth / 2);
-    const endY = childPos.y;
+    let startX, startY, endX, endY, cp1X, cp1Y, cp2X, cp2Y;
 
-    // Bezier control points for smooth curving S-shaped lines
-    const controlOffset = Math.min(80, Math.abs(endX - startX) * 0.5);
-    const cp1X = startX + (side === 'right' ? controlOffset : -controlOffset);
-    const cp1Y = startY;
-    const cp2X = endX - (side === 'right' ? controlOffset : -controlOffset);
-    const cp2Y = endY;
+    if (side === 'bottom') {
+      startX = parentPos.x;
+      startY = parentPos.y + parentPos.height / 2;
+      endX = childPos.x;
+      endY = childPos.y - childPos.height / 2;
+
+      const controlOffset = Math.min(60, Math.abs(endY - startY) * 0.5);
+      cp1X = startX;
+      cp1Y = startY + controlOffset;
+      cp2X = endX;
+      cp2Y = endY - controlOffset;
+    } else {
+      startX = parentPos.x + (side === 'right' ? parentWidth / 2 : -parentWidth / 2);
+      startY = parentPos.y;
+      endX = childPos.x - (side === 'right' ? childWidth / 2 : -childWidth / 2);
+      endY = childPos.y;
+
+      const controlOffset = Math.min(80, Math.abs(endX - startX) * 0.5);
+      cp1X = startX + (side === 'right' ? controlOffset : -controlOffset);
+      cp1Y = startY;
+      cp2X = endX - (side === 'right' ? controlOffset : -controlOffset);
+      cp2Y = endY;
+    }
 
     // Use parent or node's color with opacity for connections
     const strokeColor = node.color || parentPos.color || connectionColor;
@@ -199,7 +213,7 @@ export function exportToSVG(map, layoutMode = 'split', isDarkMode = false) {
     const cardShadow = isDarkMode ? 'rgba(0, 0, 0, 0.4)' : 'rgba(100, 116, 139, 0.12)';
 
     // SVG elements for each node card
-    svgContent += `    <!-- Node: ${node.text.replace(/&/g, '&amp;').replace(/</g, '&lt;')} -->\n`;
+    svgContent += `    <!-- Node: ${(node.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')} -->\n`;
     svgContent += `    <g transform="translate(${x - nWidth / 2}, ${y - nHeight / 2})">\n`;
     
     // Shadow rect
@@ -207,11 +221,12 @@ export function exportToSVG(map, layoutMode = 'split', isDarkMode = false) {
     // Border accent strip or border outline
     svgContent += `      <rect x="0" y="0" width="${nWidth}" height="${nHeight}" rx="${rx}" fill="${cardBg}" stroke="${accentColor}" stroke-width="${isRoot ? 3 : 1.5}" />\n`;
     
-    // Colored top/left indicator bar for child nodes
+    // Colored top/left/right indicator bar for child nodes
     if (!isRoot) {
-      // Draw a vertical color line on the edge facing the center
       const side = layout[id].side;
-      if (side === 'right') {
+      if (side === 'bottom') {
+        svgContent += `      <path d="M 8 0 L ${nWidth - 8} 0" stroke="${accentColor}" stroke-width="4" stroke-linecap="round" />\n`;
+      } else if (side === 'right') {
         svgContent += `      <path d="M 0 4 L 0 ${nHeight - 4}" stroke="${accentColor}" stroke-width="4" stroke-linecap="round" />\n`;
       } else {
         svgContent += `      <path d="M ${nWidth} 4 L ${nWidth} ${nHeight - 4}" stroke="${accentColor}" stroke-width="4" stroke-linecap="round" />\n`;
@@ -224,7 +239,6 @@ export function exportToSVG(map, layoutMode = 'split', isDarkMode = false) {
     
     let textX = isRoot ? nWidth / 2 : (layout[id].side === 'right' ? 16 + emojiPadding : 16 + emojiPadding);
     const textAnchor = isRoot ? 'middle' : 'start';
-    const textY = nHeight / 2 + 5; // vertical alignment correction
     const fontSize = isRoot ? '15px' : '13px';
     const fontWeight = isRoot ? 'bold' : '500';
 
@@ -234,22 +248,44 @@ export function exportToSVG(map, layoutMode = 'split', isDarkMode = false) {
       svgContent += `      <text x="${emojiX}" y="${nHeight / 2 + 5}" font-size="14px">${emojiStr}</text>\n`;
     }
 
-    // Node text
-    // Escaping XML characters in text content
-    const safeText = node.text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-      
-    svgContent += `      <text x="${textX}" y="${textY}" text-anchor="${textAnchor}" fill="${textColor}" font-size="${fontSize}" font-weight="${fontWeight}">${safeText}</text>\n`;
+    // Node text (handling multiline text with tspans)
+    const rawLines = (node.text || 'New Node').split('\n');
+    const lineHeight = 18;
+    const startY = (nHeight - (rawLines.length - 1) * lineHeight) / 2 + 4;
+
+    if (rawLines.length > 1) {
+      svgContent += `      <text x="${textX}" y="${startY}" text-anchor="${textAnchor}" fill="${textColor}" font-size="${fontSize}" font-weight="${fontWeight}">\n`;
+      rawLines.forEach((line, index) => {
+        const safeLine = line
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+        svgContent += `        <tspan x="${textX}" dy="${index === 0 ? 0 : lineHeight}">${safeLine}</tspan>\n`;
+      });
+      svgContent += `      </text>\n`;
+    } else {
+      const safeText = (node.text || 'New Node')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      svgContent += `      <text x="${textX}" y="${nHeight / 2 + 5}" text-anchor="${textAnchor}" fill="${textColor}" font-size="${fontSize}" font-weight="${fontWeight}">${safeText}</text>\n`;
+    }
     
     // Collapsed branches indicator
     if (node.isCollapsed && node.children && node.children.length > 0) {
       const side = layout[id].side;
-      const indicatorX = side === 'right' ? nWidth + 6 : -6;
-      svgContent += `      <circle cx="${indicatorX}" cy="${nHeight / 2}" r="5" fill="${accentColor}" />\n`;
-      svgContent += `      <text x="${indicatorX}" y="${nHeight / 2 + 3}" text-anchor="middle" fill="#ffffff" font-size="8px" font-weight="bold">+</text>\n`;
+      let indicatorX, indicatorY;
+      if (side === 'bottom') {
+        indicatorX = nWidth / 2;
+        indicatorY = nHeight + 6;
+      } else {
+        indicatorX = side === 'right' ? nWidth + 6 : -6;
+        indicatorY = nHeight / 2;
+      }
+      svgContent += `      <circle cx="${indicatorX}" cy="${indicatorY}" r="5" fill="${accentColor}" />\n`;
+      svgContent += `      <text x="${indicatorX}" y="${indicatorY + 3}" text-anchor="middle" fill="#ffffff" font-size="8px" font-weight="bold">+</text>\n`;
     }
 
     svgContent += `    </g>\n`;
